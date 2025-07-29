@@ -1,3 +1,4 @@
+import os
 from torch.nn import DataParallel
 from models.geco_infer import build_model
 from utils.arg_parser import get_argparser
@@ -48,24 +49,35 @@ def on_release(event):
 
 
 @torch.no_grad()
-def demo(args):
+def demo(args, save_path ,run_on_device=True):
     img_path = args.image_path
     global fig, ax
+    print(args.model_path)
+    if run_on_device == False:
+        gpu = 0
+        torch.cuda.set_device(gpu)
+        device = torch.device(gpu)
 
-    gpu = 0
-    torch.cuda.set_device(gpu)
-    device = torch.device(gpu)
+        model = DataParallel(
+            build_model(args).to(device),
+            device_ids=[gpu],
+            output_device=gpu
+        )
+        model.load_state_dict(
+            torch.load('GeCo.pth', weights_only=True)['model'], strict=False,
+        )
 
-    model = DataParallel(
-        build_model(args).to(device),
-        device_ids=[gpu],
-        output_device=gpu
-    )
-    model.load_state_dict(
-        torch.load('GeCo.pth', weights_only=True)['model'], strict=False,
-    )
+        model.eval()
 
-    model.eval()
+    if run_on_device == True:
+        device = torch.device('cpu')
+        model = build_model(args).to(device)
+
+        checkpoint = torch.load('MODEL_folder/GeCo.pth', map_location=device)
+        model.load_state_dict(checkpoint['model'], strict=False)
+        model.eval()
+
+
 
     image =  T.ToTensor()(Image.open(img_path).convert("RGB"))
 
@@ -132,9 +144,14 @@ def demo(args):
                  color='red')
     plt.title("Number of selected objects:" + str(len(bboxes)))
     plt.axis('off')
+
+    # Save figure
+    os.makedirs("outputs", exist_ok=True)
+    plt.savefig(save_path, bbox_inches='tight')
+    print(f"Saved figure to: {save_path}")
     plt.show()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('GeCo', parents=[get_argparser()])
     args = parser.parse_args()
-    demo(args)
+    demo(args, save_path = f"outputs/prediction_birds.png", run_on_device=True)

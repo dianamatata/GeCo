@@ -30,7 +30,8 @@ To install the required dependencies, run the following command:
 ```bash
 conda create -n geco_test python=3.8
 conda activate geco_test
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+no: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install torch torchvision torchaudio
 pip install matplotlib
 ```
 
