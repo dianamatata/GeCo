@@ -22,6 +22,7 @@ def get_argparser():
         default='./',
         type=str
     )
+    parser.add_argument('--save_path', type=str, default='outputs/prediction.png', help='Path to save prediction image')
     parser.add_argument('--dataset', default='fsc147', type=str)
     parser.add_argument('--reduction', default=16, type=int)
     parser.add_argument('--image_size', default=1024, type=int)
