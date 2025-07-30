@@ -10,6 +10,10 @@ from PIL import Image
 from torchvision import ops
 from utils.data import resize_and_pad
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use("TkAgg")
+from collections import OrderedDict
+
 
 bounding_boxes = []
 global clicked
@@ -57,7 +61,6 @@ def demo(args, save_path ,run_on_device=True):
         gpu = 0
         torch.cuda.set_device(gpu)
         device = torch.device(gpu)
-
         model = DataParallel(
             build_model(args).to(device),
             device_ids=[gpu],
@@ -72,9 +75,13 @@ def demo(args, save_path ,run_on_device=True):
     if run_on_device == True:
         device = torch.device('cpu')
         model = build_model(args).to(device)
-
-        checkpoint = torch.load('MODEL_folder/GeCo.pth', map_location=device)
-        model.load_state_dict(checkpoint['model'], strict=False)
+        checkpoint = torch.load('MODEL_folder/GeCo.pth', map_location=device, weights_only=True)
+        # Remove 'module.' from keys if present
+        state_dict = checkpoint['model']
+        new_state_dict = OrderedDict((k.replace('module.', ''), v) for k, v in state_dict.items())
+        model.load_state_dict(new_state_dict, strict=False)
+        # model.load_state_dict(checkpoint['model'], strict=False)
+        # strict=False allows loading models with missing or extra keys — useful if architectures changed slightly.
         model.eval()
 
 
@@ -154,4 +161,9 @@ def demo(args, save_path ,run_on_device=True):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('GeCo', parents=[get_argparser()])
     args = parser.parse_args()
-    demo(args, save_path = f"outputs/prediction_birds.png", run_on_device=True)
+    demo(args, save_path=args.save_path, run_on_device=True)
+
+
+# python demo.py --image_path ./material/1.jpg --output_masks --save_path outputs/prediction_3.png
+
+# python demo.py --image_path ./material/10_48_11_Léman_Allaman_11-11-24-20_Li_Fo_crop_resized_crop.jpg --output_masks --save_path outputs/leman_1.png
