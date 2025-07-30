@@ -38,9 +38,10 @@ pip install matplotlib
 To run the demo, you need to download the [pretrained weights](https://drive.google.com/file/d/1wjOF9MWkrVJVo5uG3gVqZEW9pwRq_aIk/view?usp=sharing) and put them in the `MODEL_folder`.
 
 **Run the demo:**
+~~python demo.py --image_path ./material/3.jpg --output_masks~~
 
 ```bash
-python demo.py --image_path ./material/4.jpg --output_masks
+python demo.py --image_path ./material/1.jpg --output_masks --save_path outputs/prediction_3.png
 ```
 
 
@@ -114,6 +115,7 @@ sbatch train.sh
 
 ## Possible applications
 
+top -o mem
 
 https://github.com/user-attachments/assets/e61c791d-389a-486e-a1bd-3713455df0a9
 
