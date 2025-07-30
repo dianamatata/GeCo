@@ -190,3 +190,5 @@ fabric.properties
 # idea folder, uncomment if you don't need it
 # .idea
 MODEL_folder/Unconfirmed 995495.crdownload
+/DATA_folder
+.DS_Store
