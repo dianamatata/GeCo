@@ -54,7 +54,7 @@ def on_release(event):
 
 
 @torch.no_grad()
-def demo(args, save_path):
+def demo(args, save_path, input_bboxes = False, bounding_boxes_json=None):
     global fig, ax
     print(args.model_path)
 
@@ -95,22 +95,31 @@ def demo(args, save_path):
         # strict=False allows loading models with missing or extra keys — useful if architectures changed slightly.
         model.eval()
 
+        img_path = args.image_path
+        image =  T.ToTensor()(Image.open(img_path).convert("RGB"))
 
+    if input_bboxes == False:
+        fig, ax = plt.subplots(1)
+        ax.imshow(image.permute(1,2,0))
+        plt.axis('off')
+        # Connect the click event
+        fig.canvas.mpl_connect('button_press_event', on_press)
+        fig.canvas.mpl_connect('motion_notify_event', on_motion)
+        fig.canvas.mpl_connect('button_release_event', on_release)
+        plt.title("Click and drag to draw bboxes, then close window")
+        plt.show()
 
-    image =  T.ToTensor()(Image.open(img_path).convert("RGB"))
+        bboxes = torch.tensor(bounding_boxes, dtype=torch.float32)
 
-    # Create a figure and axis
-    fig, ax = plt.subplots(1)
-    ax.imshow(image.permute(1,2,0))
-    plt.axis('off')
-    # Connect the click event
-    fig.canvas.mpl_connect('button_press_event', on_press)
-    fig.canvas.mpl_connect('motion_notify_event', on_motion)
-    fig.canvas.mpl_connect('button_release_event', on_release)
-    plt.title("Click and drag to draw bboxes, then close window")
-    plt.show()
+    if input_bboxes == True:
+        img_path = args.image_path
+        image = T.ToTensor()(Image.open(img_path).convert("RGB"))
+        # skip bounding box selection on image and load json
+        bounding_boxes = extract_bounding_boxes(file_path=bounding_boxes_json)
+        bounding_boxes = bounding_boxes[:10]
+        bboxes = torch.tensor(bounding_boxes, dtype=torch.float32)
 
-    bboxes = torch.tensor(bounding_boxes, dtype=torch.float32)
+        img, bboxes, scale = resize_and_pad(image, bboxes, full_stretch=False)
 
     img, bboxes, scale = resize_and_pad(image, bboxes, full_stretch=False)
     img = T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(img).unsqueeze(0).to(device)
@@ -184,18 +193,11 @@ def demo(args, save_path):
         json.dump(json_output, f, indent=2)
 
 
-    # Save figure
-    os.makedirs("outputs", exist_ok=True)
-    plt.savefig(save_path, bbox_inches='tight')
-    print(f"Saved figure to: {save_path}")
-    plt.show()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('GeCo', parents=[get_argparser()])
     args = parser.parse_args()
-    demo(args, save_path=args.save_path, run_on_device=True)
-
+    demo(args, save_path=args.save_path)
 
 # python demo.py --image_path ./material/1.jpg --output_masks --save_path outputs/prediction_3.png
-
-# python demo.py --image_path ./material/10_48_11_Léman_Allaman_11-11-24-20_Li_Fo_crop_resized_crop.jpg --output_masks --save_path outputs/leman_1.png
+# python demo.py --image_path ./material/10_48_11_Leman_Allaman_11-11-24-20_Li_Fo_crop_resized_crop.jpg --output_masks --save_path outputs/10_48_11_Leman_Allaman_11-11-24-20_Li_Fo_crop_resized_crop.jpg
