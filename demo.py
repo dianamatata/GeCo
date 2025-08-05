@@ -13,7 +13,8 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use("TkAgg")
 from collections import OrderedDict
-
+from extract_mask_and_bboxes import convert_to_label_studio_json, extract_bounding_boxes
+import json
 
 bounding_boxes = []
 global clicked
@@ -53,11 +54,21 @@ def on_release(event):
 
 
 @torch.no_grad()
-def demo(args, save_path ,run_on_device=True):
-    img_path = args.image_path
+def demo(args, save_path):
     global fig, ax
     print(args.model_path)
-    if run_on_device == False:
+
+    if torch.cuda.is_available():
+        print("CUDA is available. Running on GPU.")
+        backends = "gpu"
+    elif torch.backends.mps.is_available():
+        print("CUDA is not available. Running on MPS.")
+        backends = "mps"
+    else:
+        print("CUDA and MPS are not available. Running on CPU.")
+        backends = "cpu"
+
+    if backends == "gpu":
         gpu = 0
         torch.cuda.set_device(gpu)
         device = torch.device(gpu)
@@ -72,8 +83,8 @@ def demo(args, save_path ,run_on_device=True):
 
         model.eval()
 
-    if run_on_device == True:
-        device = torch.device('cpu')
+    if backends != "gpu":
+        device = torch.device(backends)
         model = build_model(args).to(device)
         checkpoint = torch.load('MODEL_folder/GeCo.pth', map_location=device, weights_only=True)
         # Remove 'module.' from keys if present
@@ -96,9 +107,7 @@ def demo(args, save_path ,run_on_device=True):
     fig.canvas.mpl_connect('button_press_event', on_press)
     fig.canvas.mpl_connect('motion_notify_event', on_motion)
     fig.canvas.mpl_connect('button_release_event', on_release)
-
     plt.title("Click and drag to draw bboxes, then close window")
-    # Show the image
     plt.show()
 
     bboxes = torch.tensor(bounding_boxes, dtype=torch.float32)
