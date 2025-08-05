@@ -163,6 +163,29 @@ def demo(args, save_path):
 
     # Save figure
     os.makedirs("outputs", exist_ok=True)
+    plt.savefig(save_path, bbox_inches='tight', dpi=350)
+    print(f"Saved figure to: {save_path}")
+    # plt.savefig(f"{save_path[:-4]}_350.jpg", bbox_inches='tight', dpi=350)
+    # print(f"Saved figure to: {save_path[:-4]}_350.jpg")
+    plt.show()
+
+    pred_boxes = bboxes.cpu() / torch.tensor([scale, scale, scale, scale]) * img.shape[-1]
+    pred_boxes = pred_boxes.tolist()
+    json_output = convert_to_label_studio_json(
+        image_path=args.image_path,
+        pred_boxes=pred_boxes,
+        image_width=image.shape[1],
+        image_height=image.shape[2],
+        label= "Mussel"
+    )
+
+    # Save to file
+    with open("outputs/label_studio_predictions.json", "w") as f:
+        json.dump(json_output, f, indent=2)
+
+
+    # Save figure
+    os.makedirs("outputs", exist_ok=True)
     plt.savefig(save_path, bbox_inches='tight')
     print(f"Saved figure to: {save_path}")
     plt.show()
