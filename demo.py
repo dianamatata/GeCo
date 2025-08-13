@@ -196,8 +196,11 @@ def demo(args, save_path, input_bboxes = False, bounding_boxes_json=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('GeCo', parents=[get_argparser()])
-    args = parser.parse_args()
-    demo(args, save_path=args.save_path)
-
-# python demo.py --image_path ./material/1.jpg --output_masks --save_path outputs/prediction_3.png
-# python demo.py --image_path ./material/10_48_11_Leman_Allaman_11-11-24-20_Li_Fo_crop_resized_crop.jpg --output_masks --save_path outputs/10_48_11_Leman_Allaman_11-11-24-20_Li_Fo_crop_resized_crop.jpg
+    # args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
+    args.image_path = "../DATA_Rovailake/material/GOPR1436_ALTA881940660803173763_Leman_Hermance_14-10-2024_30_Li_Mo_crop_resized_crop.jpg"
+    args.filename = os.path.basename(args.image_path.strip())
+    args.json_outfile = f"../DATA_Rovailake/instance_segmentation/GeCO/{args.filename[:-4]}_coco_masks.json"
+    args.save_path = f"../DATA_Rovailake/instance_segmentation/GeCO/{args.filename[:-4]}_masks.jpg"
+    print(args.output_masks)
+    demo(args)
