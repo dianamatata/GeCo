@@ -306,9 +306,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('GeCo', parents=[get_argparser()])
     # args = parser.parse_args()
     args, unknown = parser.parse_known_args()
-    args.image_path = "../DATA_Rovailake/material/GOPR1436_ALTA881940660803173763_Leman_Hermance_14-10-2024_30_Li_Mo_crop_resized_crop.jpg"
+    args.image_path = "../DATA_Rovailake/material/Photo15-07-13_Leman_SaintPrex_19-04-2025_20_Li_Mo_crop_resized_crop.jpg"
     args.filename = os.path.basename(args.image_path.strip())
     args.json_outfile = f"../DATA_Rovailake/instance_segmentation/GeCO/{args.filename[:-4]}_coco_masks.json"
-    args.save_path = f"../DATA_Rovailake/instance_segmentation/GeCO/{args.filename[:-4]}_masks.jpg"
+
+    base_path = f"../DATA_Rovailake/instance_segmentation/GeCO/{args.filename[:-4]}_masks"
+    save_path = f"{base_path}.jpg"
+    counter = 1
+    while os.path.exists(save_path):
+        save_path = f"{base_path}_{counter}.jpg"
+        counter += 1
+    print(save_path)
+    args.save_path = save_path
     print(args.output_masks)
     demo(args)
