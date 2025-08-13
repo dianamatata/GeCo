@@ -172,10 +172,8 @@ def demo(args, save_path, input_bboxes = False, bounding_boxes_json=None):
 
     # Save figure
     os.makedirs("outputs", exist_ok=True)
-    plt.savefig(save_path, bbox_inches='tight', dpi=350)
-    print(f"Saved figure to: {save_path}")
-    # plt.savefig(f"{save_path[:-4]}_350.jpg", bbox_inches='tight', dpi=350)
-    # print(f"Saved figure to: {save_path[:-4]}_350.jpg")
+    plt.savefig(args.save_path, bbox_inches='tight', dpi=350)
+    print(f"Saved figure to: {args.save_path}")
     plt.show()
 
 #     pred_boxes = bboxes.cpu() / torch.tensor([scale, scale, scale, scale]) * img.shape[-1]
