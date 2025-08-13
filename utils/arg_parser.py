@@ -22,7 +22,6 @@ def get_argparser():
         default='./',
         type=str
     )
-    parser.add_argument('--save_path', type=str, default='outputs/prediction.png', help='Path to save prediction image')
     parser.add_argument('--dataset', default='fsc147', type=str)
     parser.add_argument('--reduction', default=16, type=int)
     parser.add_argument('--image_size', default=1024, type=int)
@@ -46,6 +45,7 @@ def get_argparser():
     parser.add_argument("--cost_bbox", default=1, type=float, help="L1 box coefficient in the matching cost")
     parser.add_argument("--cost_giou", default=2, type=float, help="giou box coefficient in the matching cost")
     parser.add_argument("--focal_alpha", default=0.25, type=float)
-    parser.add_argument('--output_masks', action='store_true')
+    parser.add_argument('--output_masks', action='store_true',default=True)
+    parser.add_argument('--mode', choices=['client', 'server'], help='Execution mode')
 
     return parser
