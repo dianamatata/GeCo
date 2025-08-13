@@ -15,6 +15,11 @@ matplotlib.use("TkAgg")
 from collections import OrderedDict
 from extract_mask_and_bboxes import convert_to_label_studio_json, extract_bounding_boxes
 import json
+from utils.save_masks_to_coco import sam_masks_to_coco
+import numpy as np
+import cv2
+import torch.nn.functional as F
+
 
 bounding_boxes = []
 global clicked
@@ -51,11 +56,14 @@ def on_release(event):
     if rect is not None:
         bounding_boxes.append([rect.get_x(), rect.get_y(), rect.get_x() + rect.get_width(), rect.get_y() + rect.get_height()])
         rect = None  # Reset rect after release
+        print(bounding_boxes)
 
 
 @torch.no_grad()
-def demo(args, save_path, input_bboxes = False, bounding_boxes_json=None):
+def demo(args, input_bboxes = False, bounding_boxes_json=None):
     global fig, ax
+    global bounding_boxes
+
     print(args.model_path)
 
     if torch.cuda.is_available():
@@ -102,7 +110,6 @@ def demo(args, save_path, input_bboxes = False, bounding_boxes_json=None):
         fig, ax = plt.subplots(1)
         ax.imshow(image.permute(1,2,0))
         plt.axis('off')
-        # Connect the click event
         fig.canvas.mpl_connect('button_press_event', on_press)
         fig.canvas.mpl_connect('motion_notify_event', on_motion)
         fig.canvas.mpl_connect('button_release_event', on_release)
@@ -119,7 +126,6 @@ def demo(args, save_path, input_bboxes = False, bounding_boxes_json=None):
         bounding_boxes = bounding_boxes[:10]
         bboxes = torch.tensor(bounding_boxes, dtype=torch.float32)
 
-        img, bboxes, scale = resize_and_pad(image, bboxes, full_stretch=False)
 
     img, bboxes, scale = resize_and_pad(image, bboxes, full_stretch=False)
     img = T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(img).unsqueeze(0).to(device)
@@ -138,22 +144,125 @@ def demo(args, save_path, input_bboxes = False, bounding_boxes_json=None):
 
     plt.clf()
     plt.imshow(image.permute(1, 2, 0))
+
     if args.output_masks:
-        masks_ = masks[idx][(outputs[idx]['box_v'] > outputs[idx]['box_v'].max() / thr)[0]]
-        N_masks = masks_.shape[0]
-        indices = torch.randint(1, N_masks + 1, (1, N_masks), device=masks_.device).view(-1, 1, 1)
-        masks = (masks_ * indices).sum(dim=0)
-        mask_display = (
-            T.Resize((int(img.shape[2] / scale), int(img.shape[3] / scale)), interpolation=T.InterpolationMode.NEAREST)(
-                masks.cpu().unsqueeze(0))[0])[:image.shape[1], :image.shape[2]]
-        cmap = plt.cm.tab20  # Use a colormap with distinct colors
-        norm = plt.Normalize(vmin=0, vmax=N_masks)
-        del masks
-        del masks_
-        del outputs
-        rgba_image = cmap(norm(mask_display))
-        rgba_image[mask_display == 0, -1] = 0
-        plt.imshow(rgba_image, alpha=0.6)
+        # Get valid detection indices
+        box_scores = outputs[idx]['box_v']
+        threshold_mask = box_scores > (box_scores.max() / thr)
+
+        if threshold_mask.dim() == 2:
+            valid_detection_indices = torch.nonzero(threshold_mask, as_tuple=True)[1]
+        else:
+            valid_detection_indices = torch.nonzero(threshold_mask, as_tuple=True)[0]
+
+        # define full_masks
+        # Force conversion to tensor
+        try:
+            if isinstance(masks, list):
+                full_mask = torch.stack(masks) if all(isinstance(m, torch.Tensor) for m in masks) else torch.tensor(
+                    masks)
+            else:
+                full_mask = masks
+
+            # Now try unique
+            unique_ids = torch.unique(full_mask)
+            print(f"Unique IDs: {unique_ids}")
+
+        except Exception as e:
+            print(f"Error processing masks: {e}")
+            print(f"masks type: {type(masks)}")
+            print(f"masks content preview: {str(masks)[:200]}...")
+
+
+        print(f"Valid detection indices: {valid_detection_indices}")
+        print(f"Available masks: {full_mask[0].shape[0]}")  # Should be 449
+
+        # Extract individual masks
+        all_masks_for_coco = []
+        masks_tensor = full_mask[0]  # Shape: [449, 1024, 1024]
+
+        for i, detection_idx in enumerate(valid_detection_indices):
+            detection_idx_val = detection_idx.item()
+
+            # Check if detection index is within bounds
+            if detection_idx_val < masks_tensor.shape[0]:
+                # Get the individual mask
+                individual_mask = masks_tensor[detection_idx_val]  # Shape: [1024, 1024]
+
+                # Convert to binary mask (boolean to uint8)
+                binary_mask = individual_mask.cpu().numpy().astype(np.uint8)
+
+                # Check if mask has content
+                if binary_mask.sum() > 0:
+                    # print(f"Detection {i}: Mask {detection_idx_val} has {binary_mask.sum()} pixels")
+
+                    # Resize if needed to match original image size
+                    if binary_mask.shape != (image.shape[1], image.shape[2]):
+                        target_h, target_w = image.shape[1], image.shape[2]
+                        binary_mask_resized = cv2.resize(
+                            binary_mask.astype(np.float32),
+                            (target_w, target_h),
+                            interpolation=cv2.INTER_NEAREST
+                        ).astype(np.uint8)
+                        all_masks_for_coco.append(binary_mask_resized)
+                    else:
+                        all_masks_for_coco.append(binary_mask)
+                else:
+                    print(f"Detection {i}: Mask {detection_idx_val} is empty")
+            else:
+                print(f"Detection {i}: Index {detection_idx_val} out of bounds (max: {masks_tensor.shape[0] - 1})")
+
+        print(f"Total valid masks for COCO: {len(all_masks_for_coco)}")
+
+        # Create visualization by combining the selected masks
+        N_masks = len(all_masks_for_coco)
+        if N_masks > 0:
+
+            target_h = int(img.shape[2] / scale)
+            target_w = int(img.shape[3] / scale)
+            combined_mask = torch.zeros(target_h, target_w, dtype=torch.int)
+
+            for i, detection_idx in enumerate(valid_detection_indices[:len(all_masks_for_coco)]):
+                if detection_idx.item() < masks_tensor.shape[0]:
+                    mask_small = masks_tensor[detection_idx.item()]  # [H_mask, W_mask]
+                    mask_resized = T.Resize(
+                        (target_h, target_w),
+                        interpolation=T.InterpolationMode.NEAREST
+                    )(mask_small.unsqueeze(0)).squeeze(0).bool()
+                    combined_mask[mask_resized] = i + 1
+
+            mask_display = combined_mask[:image.shape[1], :image.shape[2]]
+
+            # Overlay
+            cmap = plt.cm.tab20
+            norm = plt.Normalize(vmin=0, vmax=N_masks)
+            print(f"Number of masks to display: {N_masks}")
+            # Create a shuffled list of IDs from 1..N_masks
+            perm = np.random.permutation(np.arange(1, N_masks + 1))
+
+            # Map original IDs to shuffled ones
+            mask_ids = mask_display.clone()
+            for old_id, new_id in zip(range(1, N_masks + 1), perm):
+                mask_ids[mask_display == old_id] = new_id
+
+            # Apply colors to shuffled IDs
+            rgba_image = cmap(norm(mask_ids))
+            rgba_image[mask_display == 0, -1] = 0
+            plt.imshow(rgba_image, alpha=0.6)
+
+            # Prepare masks for COCO saving
+            separate_masks = [(mask_display == mask_id).numpy().astype(np.uint8)
+                              for mask_id in range(1, N_masks + 1)]
+
+            # Save to COCO
+            sam_masks_to_coco(
+                all_masks=separate_masks,
+                image_path=args.image_path,
+                json_outfile=args.json_outfile,
+                image_id=idx + 1,
+                category_id=1,
+                category_name="mussel"
+            )
 
     pred_boxes = bboxes.cpu() / torch.tensor([scale, scale, scale, scale]) * img.shape[-1]
     for i in range(len(pred_boxes)):
